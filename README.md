@@ -16,6 +16,8 @@ This Flex plugin captures several custom attributes for enhanced reporting capab
 | Voice | conversation_label_10 | Conference Sid |
 | Chat | first_response_time | Agent's First Message/Response Time |
 | Chat | conversation_measure_2 | Total Message Count in the Chat Channel |
+| Chat | conversation_measure_3 | Agent Message Count in the Chat Channel |
+| Chat | conversation_measure_4 | Customer Message Count in the Chat Channel |
 | Chat+Voice | hang_up_by | "Agent" if agent hung-up the call or ended the Chat. "Customer" if customer ended the Chat |
 
 

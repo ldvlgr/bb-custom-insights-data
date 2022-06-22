@@ -5,7 +5,8 @@ import { FlexPlugin } from '@twilio/flex-plugin'
 const PLUGIN_NAME = 'CustomInsightsDataPlugin';
 const HOLD_COUNT_PROP = 'conversation_measure_1';
 const MSG_COUNT_PROP = 'conversation_measure_2';
-
+const AGENT_MSG_COUNT_PROP = 'conversation_measure_3';
+const CUSTOMER_MSG_COUNT_PROP = 'conversation_measure_4';
 const CALL_SID_LABEL_PROP = 'conversation_label_9';
 const CONFERENCE_SID_LABEL_PROP = 'conversation_label_10';
 
@@ -173,16 +174,22 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
         let channelSid = reservation.task.attributes.channelSid;
         manager.chatClient.getChannelBySid(channelSid)
           .then((channel) => {
+            let agentMsgCount = 0;
             let workerName = manager.workerClient.name;   //or use workerName = manager.user.identity;
             channel.on('messageAdded', async (message) => {
               const { author, body } = message;
+              //Note: Unable to catch initial messages from customer until agent accepts
+              if (author == workerName) agentMsgCount += 1;
 
               let workerResponseTime;
               console.log(PLUGIN_NAME, 'Channel', channelSid, 'created', channel.dateCreated, 'Message from', author, 'at', message.timestamp);
               const attr = reservation.task.attributes;
               //Message count
               let msgCounts = {};
-              msgCounts[MSG_COUNT_PROP] = await channel.getMessagesCount();
+              let totalMsgCount = await channel.getMessagesCount();
+              msgCounts[MSG_COUNT_PROP] = totalMsgCount
+              msgCounts[AGENT_MSG_COUNT_PROP] = agentMsgCount;
+              msgCounts[CUSTOMER_MSG_COUNT_PROP] = totalMsgCount - agentMsgCount;
               console.log(PLUGIN_NAME, 'Updating msg counts', msgCounts);
               await this.updateConversations(reservation.task, msgCounts);
 
