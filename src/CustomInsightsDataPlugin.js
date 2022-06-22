@@ -165,6 +165,9 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
           console.log(PLUGIN_NAME, 'Reservation wrapup', reservation);
           await this.setCallConfSids(reservation.task);
         });
+        //Set default value
+        this.updateConversations(reservation.task, { hang_up_by:CUSTOMER });
+
       } else {
         //Chat metrics - First Response time (duration) from Agent's first reply to customer
         let channelSid = reservation.task.attributes.channelSid;
