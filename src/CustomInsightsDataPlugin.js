@@ -230,7 +230,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
         const bpo = queueNameComponents[0];
         const pillar = queueNameComponents[1];
         const program = queueNameComponents[2];
-        await this.updateConversations(reservation.task, { pillar: pillar, program: program });
+        await this.updateConversations(reservation.task, { conversation_attribute_4: pillar, conversation_attribute_5: program });
       }
     });
   }
