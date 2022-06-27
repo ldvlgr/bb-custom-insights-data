@@ -18,6 +18,8 @@ This Flex plugin captures several custom attributes for enhanced reporting capab
 | Chat | conversation_measure_2 | Total Message Count in the Chat Channel |
 | Chat | conversation_measure_3 | Agent Message Count in the Chat Channel |
 | Chat | conversation_measure_4 | Customer Message Count in the Chat Channel |
+| Chat+Voice | conversation_attribute_4 | Pillar |
+| Chat+Voice | conversation_attribute_5 | Program |
 | Chat+Voice | hang_up_by | "Agent" if agent hung-up the call or ended the Chat. "Customer" if customer ended the Chat |
 
 

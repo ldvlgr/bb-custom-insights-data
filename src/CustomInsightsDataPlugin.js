@@ -160,7 +160,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
     });
 
 
-    manager.workerClient.on("reservationCreated", reservation => {
+    manager.workerClient.on("reservationCreated", async reservation => {
       if (reservation.task.taskChannelUniqueName == 'voice') {
         reservation.on("wrapup", async (reservation) => {
           console.log(PLUGIN_NAME, 'Reservation wrapup', reservation);
@@ -220,9 +220,19 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
             })
           });
       }
+
+      // Populate pillar, sales from queue name
+      const queue = reservation.task.queueName;
+      console.log(reservation.task);
+      const queueNameComponents = queue.split('.');
+      // Assumption: if the queue name contains two '.', the format is "BPO.pillar.program"
+      if(queueNameComponents && queueNameComponents.length == 3) {
+        const bpo = queueNameComponents[0];
+        const pillar = queueNameComponents[1];
+        const program = queueNameComponents[2];
+        await this.updateConversations(reservation.task, { conversation_attribute_4: pillar, conversation_attribute_5: program });
+      }
     });
-
-
   }
 
   /**
