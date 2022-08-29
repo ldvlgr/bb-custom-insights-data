@@ -167,7 +167,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
           await this.setCallConfSids(reservation.task);
         });
         //Set default value
-        this.updateConversations(reservation.task, { hang_up_by:CUSTOMER });
+        this.updateConversations(reservation.task, { hang_up_by: CUSTOMER });
 
       } else {
         reservation.on('accepted', async (reservation) => {
@@ -181,25 +181,14 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
             console.log(PLUGIN_NAME, 'Channel Added.');
             //Chat metrics - First Response time (duration) from Agent's first reply to customer
             let channelSid = reservation.task.attributes.channelSid;
-            let agentMsgCount = 0;
             //let workerName = manager.workerClient.name;  //name has @ etc
             const identity = manager.workerClient.attributes.contact_uri.replace('client:', '');
             channel.on('messageAdded', async (message) => {
               const { author, body } = message;
-              //Note: Unable to catch initial messages from customer until agent accepts
-              if (author == identity) agentMsgCount += 1;
 
               let workerResponseTime;
               console.log(PLUGIN_NAME, 'Channel', channelSid, 'created', channel.dateCreated, 'Message from', author, 'at', message.timestamp);
               const attr = reservation.task.attributes;
-              //Message count
-              let msgCounts = {};
-              let totalMsgCount = await channel.getMessagesCount();
-              msgCounts[MSG_COUNT_PROP] = totalMsgCount
-              msgCounts[AGENT_MSG_COUNT_PROP] = agentMsgCount;
-              msgCounts[CUSTOMER_MSG_COUNT_PROP] = totalMsgCount - agentMsgCount;
-              console.log(PLUGIN_NAME, 'Updating msg counts', msgCounts);
-              await this.updateConversations(reservation.task, msgCounts);
 
               //Agent First Response Time
               if (author == identity) {
@@ -229,6 +218,31 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
 
           });
         });
+
+        reservation.on('wrapup', async (reservation) => {
+          console.log(PLUGIN_NAME, 'Reservation WrapUp: ', reservation);
+          let channelSid = reservation.task.attributes.channelSid;
+          let agentMsgCount = 0;
+          const flexState = _manager.store.getState().flex;
+          const flexChatChannels = flexState.chat.channels;
+          console.log(PLUGIN_NAME, 'Channels from Flex Redux', flexChatChannels);
+          
+          const chatChannel = flexChatChannels[channelSid];
+          const messages = chatChannel?.messages || [];
+          console.log(PLUGIN_NAME, 'Channel Messages', messages);
+          messages.forEach(m => {
+            if (m.isFromMe == true) agentMsgCount++;
+          });
+
+          let msgCounts = {};
+          let totalMsgCount = messages.length;
+          msgCounts[MSG_COUNT_PROP] = totalMsgCount;
+          msgCounts[AGENT_MSG_COUNT_PROP] = agentMsgCount;
+          msgCounts[CUSTOMER_MSG_COUNT_PROP] = totalMsgCount - agentMsgCount;
+          console.log(PLUGIN_NAME, 'Updating msg counts', msgCounts);
+          await this.updateConversations(reservation.task, msgCounts);
+        });
+
       }
 
       // Populate pillar, sales from queue name
@@ -236,7 +250,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
       console.log(reservation.task);
       const queueNameComponents = queue.split('.');
       // Assumption: if the queue name contains two '.', the format is "BPO.pillar.program"
-      if(queueNameComponents && queueNameComponents.length == 3) {
+      if (queueNameComponents && queueNameComponents.length == 3) {
         const bpo = queueNameComponents[0];
         const pillar = queueNameComponents[1];
         const program = queueNameComponents[2];
