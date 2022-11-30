@@ -1,6 +1,7 @@
 import { Actions, VERSION, Manager, TaskHelper } from '@twilio/flex-ui';
 import { FlexPlugin } from '@twilio/flex-plugin'
 //import reducers, { namespace } from './states';
+import { updateConversations, resetConversations} from './utils/taskUtil';
 
 const PLUGIN_NAME = 'CustomInsightsDataPlugin';
 const HOLD_COUNT_PROP = 'conversation_measure_1';
@@ -25,40 +26,6 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
     super(PLUGIN_NAME);
   }
 
-  // Add these task.attributes
-  // conversations":{"followed_by":"Transfer to Queue","destination":"<queue name>"} or
-  // conversations":{"followed_by":"Transfer to Agent"}
-  updateConversations = async (task, conversationsData = {}) => {
-    let newAttributes = { ...task.attributes };
-    let conversations = task.attributes.conversations;
-    let newConv = {};
-    if (conversations) {
-      newConv = { ...conversations };
-    }
-    let convAttributes = Object.keys(conversationsData);
-    if (convAttributes.length > 0) {
-      for (const attr of convAttributes) {
-        newConv[attr] = conversationsData[attr];
-      }
-      newAttributes.conversations = newConv;
-      console.log(PLUGIN_NAME, 'Updating task with new attributes:', newAttributes);
-      await task.setAttributes(newAttributes);
-    }
-  }
-
-  resetConversations = async (task) => {
-    //Transfers and Hold Count - only remove if there was a transfer
-    let newAttributes = { ...task.attributes };
-    if (newAttributes?.conversations?.followed_by) {
-      delete newAttributes.conversations.followed_by;
-      delete newAttributes.conversations.destination;
-      delete newAttributes.conversations[HOLD_COUNT_PROP];
-      console.log(PLUGIN_NAME, 'Updating task with new attributes:', newAttributes);
-      await task.setAttributes(newAttributes);
-    }
-  }
-
-
   getQueues = (manager) => new Promise(async (resolve) => {
     if (!queues) {
       const query = await manager.insightsClient.instantQuery('tr-queue');
@@ -82,6 +49,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
     }
     return queueElem;
   }
+
 
   /**
    * This code is run when your plugin is being started
@@ -110,13 +78,15 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
         followed_by = "Transfer to Agent";
       }
       let convoData = { hang_up_by: UNKNOWN, followed_by, destination };
+      let msgCounts = this.getMessageCounts(reservation);
+      convoData = { ...convoData, ...msgCounts };
 
       const queueElem = this.getQueueElements(payload.task.queueName);
       if (queueElem) {
         convoData.conversation_attribute_4 = queueElem.pillar;
         convoData.conversation_attribute_5 = queueElem.product;
       }
-      await this.updateConversations(payload.task, convoData);
+      await updateConversations(payload.task, convoData);
     });
 
     Actions.addListener("afterHangupCall", async (payload) => {
@@ -127,13 +97,13 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
         convoData.conversation_attribute_4 = queueElem.pillar;
         convoData.conversation_attribute_5 = queueElem.product;
       }
-      await this.updateConversations(payload.task, convoData);
+      await updateConversations(payload.task, convoData);
     });
 
 
     //Need to clear custom conversations attributes before next segment
     Actions.addListener('afterCompleteTask', async (payload) => {
-      await this.resetConversations(payload.task);
+      await resetConversations(payload.task);
     });
 
     //Disable this if you you have no need to capture hold count
@@ -147,7 +117,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
       let newConvData = {};
       newConvData[HOLD_COUNT_PROP] = holdCount + 1;
       console.log(PLUGIN_NAME, 'Updating hold count', newConvData);
-      await this.updateConversations(payload.task, newConvData);
+      await updateConversations(payload.task, newConvData);
     });
 
 
@@ -172,7 +142,7 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
             convoData[CALL_SID_LABEL_PROP] = callSid;
             convoData[CONFERENCE_SID_LABEL_PROP] = confSid;
           }
-          await this.updateConversations(reservation.task, convoData);
+          await updateConversations(reservation.task, convoData);
         });
 
       } else {
@@ -190,9 +160,9 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
             channel.on('memberLeft', async (member) => {
               console.log(PLUGIN_NAME, member.identity, 'left the chat');
               if (member.identity == identity) {
-                await this.updateConversations(reservation.task, { hang_up_by: AGENT });
+                await updateConversations(reservation.task, { hang_up_by: AGENT });
               } else {
-                await this.updateConversations(reservation.task, { hang_up_by: CUSTOMER });
+                await updateConversations(reservation.task, { hang_up_by: CUSTOMER });
               }
             });
 
@@ -201,57 +171,59 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
 
         reservation.on('wrapup', async (reservation) => {
           console.log(PLUGIN_NAME, 'Reservation WrapUp: ', reservation);
-          let channelSid = reservation.task.attributes.channelSid;
-          let agentMsgCount = 0;
-          const flexState = _manager.store.getState().flex;
-          const flexChatChannels = flexState.chat.channels;
-          console.log(PLUGIN_NAME, 'Channels from Flex Redux', flexChatChannels);
-
-          const chatChannel = flexChatChannels[channelSid];
-          const messages = chatChannel?.messages || [];
-          console.log(PLUGIN_NAME, 'Channel Messages', messages);
-
-          let durations = [];
-          let firstResponseTime = 0;
-          for (let i = 0; i < messages.length; i++) {
-            if (messages[i].isFromMe === true) {
-              if (firstResponseTime == 0) {
-                firstResponseTime = (messages[i]?.source.state.timestamp - messages[0]?.source.state.timestamp) / 1000;
-              }
-              agentMsgCount++;
+          if (!reservation.task.attributes?.conversations[MSG_COUNT_PROP]) {
+            let msgCounts = this.getMessageCounts(reservation);
+            const queueElem = this.getQueueElements(reservation.task.queueName);
+            if (queueElem) {
+              msgCounts.conversation_attribute_4 = queueElem.pillar;
+              msgCounts.conversation_attribute_5 = queueElem.product;
             }
-            if (i > 0) {
-              if (messages[i].isFromMe === true && messages[i - 1].isFromMe !== true) {
-                durations.push((new Date(messages[i]?.source.state.timestamp) - new Date(messages[i - 1]?.source.state.timestamp)) / 1000)
-              }
-            }
-          }
-          // exclude first agent response
-          durations.shift()
-          const averageResponseTime = (durations.length > 0) ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
-
-          let msgCounts = {};
-          let totalMsgCount = messages.length;
-          msgCounts[MSG_COUNT_PROP] = totalMsgCount;
-          msgCounts[AGENT_MSG_COUNT_PROP] = agentMsgCount;
-          msgCounts[CUSTOMER_MSG_COUNT_PROP] = totalMsgCount - agentMsgCount;
-          msgCounts[FIRST_RESPONSE_TIME] = firstResponseTime
-          msgCounts[AVERAGE_RESPONSE_TIME] = averageResponseTime;
-          console.log(PLUGIN_NAME, 'Updating msg counts', msgCounts);
-
-          const queueElem = this.getQueueElements(reservation.task.queueName);
-          
-          if (queueElem) {
-            msgCounts.conversation_attribute_4 = queueElem.pillar;
-            msgCounts.conversation_attribute_5 = queueElem.product;
-          }
-
-          await this.updateConversations(reservation.task, msgCounts);
+            await updateConversations(reservation.task, msgCounts);
+          };
         });
-
       }
-
     });
+  }
+
+  getMessageCounts(reservation) {
+    let channelSid = reservation.task.attributes.channelSid;
+    let agentMsgCount = 0;
+    const flexState = _manager.store.getState().flex;
+    const flexChatChannels = flexState.chat.channels;
+    console.log(PLUGIN_NAME, 'Channels from Flex Redux', flexChatChannels);
+
+    const chatChannel = flexChatChannels[channelSid];
+    const messages = chatChannel?.messages || [];
+    console.log(PLUGIN_NAME, 'Channel Messages', messages);
+
+    let durations = [];
+    let firstResponseTime = 0;
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].isFromMe === true) {
+        if (firstResponseTime == 0) {
+          firstResponseTime = (messages[i]?.source.state.timestamp - messages[0]?.source.state.timestamp) / 1000;
+        }
+        agentMsgCount++;
+      }
+      if (i > 0) {
+        if (messages[i].isFromMe === true && messages[i - 1].isFromMe !== true) {
+          durations.push((new Date(messages[i]?.source.state.timestamp) - new Date(messages[i - 1]?.source.state.timestamp)) / 1000);
+        }
+      }
+    }
+    // exclude first agent response
+    durations.shift();
+    const averageResponseTime = (durations.length > 0) ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+
+    let msgCounts = {};
+    let totalMsgCount = messages.length;
+    msgCounts[MSG_COUNT_PROP] = totalMsgCount;
+    msgCounts[AGENT_MSG_COUNT_PROP] = agentMsgCount;
+    msgCounts[CUSTOMER_MSG_COUNT_PROP] = totalMsgCount - agentMsgCount;
+    msgCounts[FIRST_RESPONSE_TIME] = firstResponseTime;
+    msgCounts[AVERAGE_RESPONSE_TIME] = averageResponseTime;
+    console.log(PLUGIN_NAME, 'Updating msg counts', msgCounts);
+    return msgCounts;
   }
 
   /**
