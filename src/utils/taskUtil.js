@@ -24,12 +24,14 @@ export const updateConversations = async (task, conversationsData = {}) => {
 
 export const resetConversations = async (task) => {
   //Transfers and Hold Count - only remove if there was a transfer
+  console.log(PLUGIN_NAME, 'Reset conversations task:', task);
   let newAttributes = { ...task.attributes };
+  console.log(PLUGIN_NAME, 'New task attr:', newAttributes);
   if (newAttributes?.conversations?.followed_by) {
     delete newAttributes.conversations.followed_by;
     delete newAttributes.conversations.destination;
     delete newAttributes.conversations[HOLD_COUNT_PROP];
-    console.log(PLUGIN_NAME, 'Updating task with new attributes:', newAttributes);
+    console.log(PLUGIN_NAME, 'Reset task attributes:', newAttributes);
     await task.setAttributes(newAttributes);
   }
 }
