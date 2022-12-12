@@ -1,4 +1,4 @@
-
+const HOLD_COUNT_PROP = 'conversation_measure_1';
 const PLUGIN_NAME = 'CustomInsightsDataPlugin';
 
   // Adds these task.attributes
