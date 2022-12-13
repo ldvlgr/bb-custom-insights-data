@@ -1,9 +1,10 @@
-import { VERSION } from '@twilio/flex-ui';
+import { VERSION, TaskHelper } from '@twilio/flex-ui';
 import { FlexPlugin } from '@twilio/flex-plugin'
 //import reducers, { namespace } from './states';
 
 import CustomActions from './actions';
 import registerEventListeners from "./event-listeners";
+import { handleReservationWrapup } from './event-listeners';
 
 const PLUGIN_NAME = 'CustomInsightsDataPlugin';
 
@@ -24,6 +25,20 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
 
     CustomActions(manager);
     registerEventListeners(manager);
+
+    //Wait for flex to load before checking for tasks
+    const flexInitWait = 1000;
+    const flexInitializeInterval = setTimeout(() => {
+      const reservations = manager.workerClient.reservations;
+      console.log(PLUGIN_NAME, "Reservations", reservations );
+      if (reservations) {
+        reservations.forEach(reservation => {
+          reservation.on('wrapup', () => handleReservationWrapup (reservation) );
+        });
+      }
+      clearTimeout(flexInitializeInterval);
+    }, flexInitWait)
+
   }
 
   /**

@@ -3,6 +3,7 @@ import { updateConversations } from '../utils/taskUtil';
 import { getQueueElements } from '../utils/queueUtil';
 import { getMessageCounts } from '../utils/chatUtil';
 
+const MSG_COUNT_PROP = 'conversation_measure_2';
 const CALL_SID_LABEL_PROP = 'conversation_label_9';
 const CONFERENCE_SID_LABEL_PROP = 'conversation_label_10';
 const CUSTOMER = 'Customer';
@@ -60,19 +61,24 @@ export default (manager) => {
         });
       });
 
-      reservation.on('wrapup', async (reservation) => {
-        console.log(PLUGIN_NAME, 'Reservation WrapUp: ', reservation);
-        if (!reservation.task.attributes?.conversations[MSG_COUNT_PROP]) {
-          const channelSid = reservation.task.attributes.channelSid;
-          const msgCounts = getMessageCounts(channelSid);
-          const queueElem = getQueueElements(reservation.task.queueName);
-          if (queueElem) {
-            msgCounts.conversation_attribute_4 = queueElem.pillar;
-            msgCounts.conversation_attribute_5 = queueElem.product;
-          }
-          await updateConversations(reservation.task, msgCounts);
-        };
-      });
+      reservation.on('wrapup', handleReservationWrapup (reservation) );
     }
   });
+}
+
+
+export const handleReservationWrapup = async (reservation) => {
+	console.log(PLUGIN_NAME, `handleReservationWrapup: `, reservation);
+
+  if (!reservation.task.attributes?.conversations) {
+    const channelSid = reservation.task.attributes.channelSid;
+    const msgCounts = getMessageCounts(channelSid);
+    const queueElem = getQueueElements(reservation.task.queueName);
+    if (queueElem) {
+      msgCounts.conversation_attribute_4 = queueElem.pillar;
+      msgCounts.conversation_attribute_5 = queueElem.product;
+    }
+    await updateConversations(reservation.task, msgCounts);
+  };
+
 }
