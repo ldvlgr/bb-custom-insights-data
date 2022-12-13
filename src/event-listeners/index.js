@@ -1,4 +1,4 @@
-import { Manager } from '@twilio/flex-ui';
+import { Manager, TaskHelper } from '@twilio/flex-ui';
 import { updateConversations } from '../utils/taskUtil';
 import { getQueueElements } from '../utils/queueUtil';
 import { getMessageCounts } from '../utils/chatUtil';
@@ -61,7 +61,7 @@ export default (manager) => {
         });
       });
 
-      reservation.on('wrapup', handleReservationWrapup (reservation) );
+      reservation.on('wrapup', () => handleReservationWrapup (reservation) );
     }
   });
 }
@@ -70,8 +70,10 @@ export default (manager) => {
 export const handleReservationWrapup = async (reservation) => {
 	console.log(PLUGIN_NAME, `handleReservationWrapup: `, reservation);
 
-  if (!reservation.task.attributes?.conversations) {
-    const channelSid = reservation.task.attributes.channelSid;
+  const task = TaskHelper.getTaskByTaskSid(reservation.sid);
+  console.log(PLUGIN_NAME, `task attr: `, task.attributes);
+  // if (!task.attributes?.conversations?.conversation_measure_2) {
+    const channelSid = task.attributes.channelSid;
     const msgCounts = getMessageCounts(channelSid);
     const queueElem = getQueueElements(reservation.task.queueName);
     if (queueElem) {
@@ -79,6 +81,6 @@ export const handleReservationWrapup = async (reservation) => {
       msgCounts.conversation_attribute_5 = queueElem.product;
     }
     await updateConversations(reservation.task, msgCounts);
-  };
+  // };
 
 }
