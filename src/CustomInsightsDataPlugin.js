@@ -1,12 +1,10 @@
-import { VERSION, TaskHelper } from '@twilio/flex-ui';
-import { FlexPlugin } from '@twilio/flex-plugin'
-//import reducers, { namespace } from './states';
+import { VERSION, TaskHelper } from "@twilio/flex-ui";
+import { FlexPlugin } from "@twilio/flex-plugin";
 
-import CustomActions from './actions';
+import CustomActions from "./actions";
 import registerEventListeners from "./event-listeners";
-import { handleReservationWrapup } from './event-listeners';
-
-const PLUGIN_NAME = 'CustomInsightsDataPlugin';
+import { handleReservationWrapup } from "./event-listeners";
+import { PLUGIN_NAME } from "./utils/constants";
 
 export default class CustomInsightsDataPlugin extends FlexPlugin {
   constructor() {
@@ -30,15 +28,14 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
     const flexInitWait = 1000;
     const flexInitializeInterval = setTimeout(() => {
       const reservations = manager.workerClient.reservations;
-      console.log(PLUGIN_NAME, "Reservations", reservations );
+      console.log(PLUGIN_NAME, "Reservations", reservations);
       if (reservations) {
-        reservations.forEach(reservation => {
-          reservation.on('wrapup', () => handleReservationWrapup (reservation) );
+        reservations.forEach((reservation) => {
+          reservation.on("wrapup", () => handleReservationWrapup(reservation));
         });
       }
       clearTimeout(flexInitializeInterval);
-    }, flexInitWait)
-
+    }, flexInitWait);
   }
 
   /**
@@ -49,7 +46,9 @@ export default class CustomInsightsDataPlugin extends FlexPlugin {
   registerReducers(manager) {
     if (!manager.store.addReducer) {
       // eslint-disable-next-line
-      console.error(`You need FlexUI > 1.9.0 to use built-in redux; you are currently on ${VERSION}`);
+      console.error(
+        `You need FlexUI > 1.9.0 to use built-in redux; you are currently on ${VERSION}`
+      );
       return;
     }
 
